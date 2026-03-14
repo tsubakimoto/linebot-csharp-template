@@ -18,8 +18,9 @@ public class Bot
     private static readonly string _contentApiEndpoint = "/v2/bot/message/{0}/content";
 
     private readonly ILogger<Bot> logger;
-    private readonly IConfiguration configuration;
     private readonly IHttpClientFactory httpClientFactory;
+    private readonly string channelAccessToken;
+    private readonly string channelSecret;
 
     public Bot(
         ILogger<Bot> logger,
@@ -27,16 +28,16 @@ public class Bot
         IHttpClientFactory httpClientFactory)
     {
         this.logger = logger;
-        this.configuration = configuration;
         this.httpClientFactory = httpClientFactory;
+
+        channelAccessToken = configuration["Line:AccessToken"] ?? throw new ArgumentNullException("Line:AccessToken");
+        channelSecret = configuration["Line:ChannelSecret"] ?? throw new ArgumentNullException("Line:ChannelSecret");
     }
 
     [Function("Bot")]
     public async Task<IActionResult> Run(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req)
     {
-        logger.LogInformation("C# HTTP trigger function processed a request.");
-
         req.Headers.TryGetValue("X-Line-Signature", out var xLineSignature);
         if (string.IsNullOrEmpty(xLineSignature))
         {
@@ -56,11 +57,9 @@ public class Bot
 
         logger.LogDebug("Message: {0}", json.MessageText);
 
-        var channelSecret = configuration["LineChannelSecret"];
         if (IsSignature(xLineSignature!, requestBody, channelSecret!) && json.IsMessageEvent)
         {
-            var accessToken = configuration["LineAccessToken"]!;
-            await ReplyAsync(json.ReplyToken, json.MessageText, accessToken);
+            await ReplyAsync(json.ReplyToken, json.MessageText, channelAccessToken);
             return new OkResult();
         }
         return new BadRequestResult();
